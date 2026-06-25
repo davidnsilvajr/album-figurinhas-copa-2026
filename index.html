@@ -648,6 +648,7 @@ function cloudConnect(){
           state=remote;
           try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
           render();
+          if(liveFriend) renderComparison();   // atualiza comparação ao vivo
           applyingRemote=false;
         }
         cloudPillSet("on","Sincronizado");
@@ -739,6 +740,8 @@ function upsertFriend(name,code){
 const tradeBg=document.getElementById("tradeBg");
 const tradeBody=document.getElementById("tradeBody");
 let selTake=new Set(), selGive=new Set();
+let liveFriend=null, friendUnsub=null;   // comparação em tempo real
+function stopLive(){ if(friendUnsub){ friendUnsub(); friendUnsub=null; } liveFriend=null; }
 
 function miniFlag(it){
   if(it.type==="special"){
@@ -749,8 +752,8 @@ function miniFlag(it){
 }
 
 document.getElementById("tradeBtn").onclick=openTrades;
-document.getElementById("tradeX").onclick=()=>tradeBg.classList.remove("show");
-tradeBg.addEventListener("click",e=>{ if(e.target===tradeBg) tradeBg.classList.remove("show"); });
+document.getElementById("tradeX").onclick=()=>{ stopLive(); tradeBg.classList.remove("show"); };
+tradeBg.addEventListener("click",e=>{ if(e.target===tradeBg){ stopLive(); tradeBg.classList.remove("show"); } });
 
 function openTrades(){ renderTradeHome(); tradeBg.classList.add("show"); }
 
@@ -761,10 +764,10 @@ function renderTradeHome(){
       <h4>➕ Comparar com um amigo</h4>
       <div class="trow">
         <input class="tinput" id="fName" placeholder="Nome do amigo (ex: João)" autocomplete="off">
-        <input class="tinput" id="fCode" placeholder="código do amigo (do ☁️ Nuvem dele)" autocomplete="off">
-        <button class="btn trade" id="fGo">Comparar</button>
+        <input class="tinput" id="fCode" placeholder="ID do amigo (o nome que ele usou no ☁️)" autocomplete="off">
+        <button class="btn trade" id="fGo">Comparar ao vivo</button>
       </div>
-      <div class="tempty">Peça o <b>código de sincronização</b> que aparece no ☁️ Nuvem do seu amigo. Vocês precisam estar no mesmo grupo (mesmo projeto Firebase — use o convite abaixo).</div>
+      <div class="tempty">Digite o <b>ID</b> do amigo (o nome que ele escolheu no ☁️ Nuvem). A comparação fica <b>🟢 ao vivo</b>: se ele colar uma figurinha agora, atualiza na sua tela na hora.</div>
       <div class="trow" style="margin-top:6px">
         <textarea class="tinput" id="fPaste" placeholder="(alternativa) cole aqui o backup do amigo" style="min-height:48px;resize:vertical"></textarea>
         <button class="btn ghost" id="fPasteGo">Usar backup</button>
@@ -819,12 +822,20 @@ function renderTradeHome(){
 
 function compareByCode(name,code){
   if(!db){ toast("Ative a ☁️ Nuvem primeiro (ou use o backup do amigo)"); return; }
-  toast("Buscando álbum de "+name+"…");
-  db.collection("albuns").doc(code).get().then(snap=>{
-    if(!snap.exists || !snap.data().state){ toast("Não encontrei álbum com esse código 🤷"); return; }
+  toast("Conectando ao álbum de "+name+"…");
+  stopLive();
+  liveFriend={name,code,state:null,live:true};
+  let first=true;
+  friendUnsub=db.collection("albuns").doc(code).onSnapshot(snap=>{
+    if(!snap.exists || !snap.data().state){
+      if(first){ toast("Não encontrei álbum com esse ID 🤷"); stopLive(); renderTradeHome(); }
+      return;
+    }
     upsertFriend(name,code);
-    showComparison({name,code,state:snap.data().state});
-  }).catch(e=>{ toast("Erro ao buscar na nuvem"); console.error(e); });
+    liveFriend.state=snap.data().state;
+    if(first){ selTake.clear(); selGive.clear(); first=false; }
+    renderComparison();
+  }, err=>{ toast("Erro ao conectar na nuvem"); console.error(err); stopLive(); });
 }
 
 function buildDiff(fs){
@@ -844,14 +855,28 @@ function itemRow(it,side){
     <div class="cb">✓</div>${miniFlag(it)}<span>${it.code} ${it.n}</span></div>`;
 }
 
+/* modo backup (sem nuvem): comparação estática */
 function showComparison(friend){
+  stopLive();
   selTake.clear(); selGive.clear();
+  liveFriend={name:friend.name,code:friend.code||null,state:friend.state,live:false};
+  renderComparison();
+}
+
+/* renderiza a comparação a partir de liveFriend, preservando as seleções */
+function renderComparison(){
+  const friend=liveFriend; if(!friend || !friend.state) return;
   const {take,give}=buildDiff(friend.state);
   const perfeitas=Math.min(take.length,give.length);
   const cloudFriend=!!friend.code && !!db;
+  // mantém só seleções ainda válidas
+  const validTake=new Set(take.map(i=>i.id)), validGive=new Set(give.map(i=>i.id));
+  selTake.forEach(id=>{ if(!validTake.has(id)) selTake.delete(id); });
+  selGive.forEach(id=>{ if(!validGive.has(id)) selGive.delete(id); });
+  const liveTag=friend.live?'<span style="font-size:11px;font-weight:800;color:#7ef0ad;background:rgba(31,193,107,.16);border:1px solid rgba(31,193,107,.5);border-radius:99px;padding:3px 9px;margin-left:8px">🟢 ao vivo</span>':'<span style="font-size:11px;color:var(--muted);margin-left:8px">(backup)</span>';
   tradeBody.innerHTML=`
     <button class="btn ghost" id="backHome" style="margin-bottom:12px">‹ Voltar</button>
-    <h4 style="margin:0 0 4px">Troca com <b>${friend.name}</b></h4>
+    <h4 style="margin:0 0 4px">Troca com <b>${friend.name}</b>${liveTag}</h4>
     <div class="tsummary">
       <div class="tcard take"><b>${take.length}</b><span>você pega</span></div>
       <div class="tcard give"><b>${give.length}</b><span>você dá</span></div>
@@ -872,7 +897,7 @@ function showComparison(friend){
       <button class="btn trade" id="confirmTrade">✅ Registrar troca</button>
     </div>`;
 
-  tradeBody.querySelector("#backHome").onclick=renderTradeHome;
+  tradeBody.querySelector("#backHome").onclick=()=>{ stopLive(); renderTradeHome(); };
 
   tradeBody.querySelectorAll(".titem").forEach(el=>{
     el.onclick=()=>{
@@ -916,6 +941,7 @@ function confirmTrade(friend,updateFriend){
     toast("Troca registrada no seu álbum! ✅");
   }
   selTake.clear(); selGive.clear();
+  stopLive();
   tradeBg.classList.remove("show");
 }
 
