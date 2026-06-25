@@ -604,10 +604,16 @@ function toast(msg){
 
 /* ============ SINCRONIZAÇÃO NA NUVEM (Firebase) ============ */
 const CLOUD_KEY="figurinhas_cloud_cfg_v1";
+
+/* CONFIG PADRÃO DA NUVEM — preenchida pelo David. Quando definida, o app já
+   vem com a nuvem pronta: o usuário só escolhe um nome/código pra entrar. */
+const DEFAULT_CFG = null;
+
 let cloud = { cfg:null, code:null };
 let db=null, docRef=null, unsub=null, pushTimer=null, applyingRemote=false;
 
 try{ cloud = JSON.parse(localStorage.getItem(CLOUD_KEY)) || {cfg:null,code:null}; }catch(e){}
+function effCfg(){ return cloud.cfg || DEFAULT_CFG; }
 
 function cloudPillSet(cls,txt){
   const p=document.getElementById("cloudPill");
@@ -616,10 +622,11 @@ function cloudPillSet(cls,txt){
 }
 
 function cloudConnect(){
-  if(!cloud.cfg || !cloud.code){ cloudPillSet("","Nuvem"); return; }
+  const cfg=effCfg();
+  if(!cfg || !cloud.code){ cloudPillSet("","Nuvem"); return; }
   if(typeof firebase==="undefined"){ cloudPillSet("err","Sem internet"); return; }
   try{
-    if(!firebase.apps.length) firebase.initializeApp(cloud.cfg);
+    if(!firebase.apps.length) firebase.initializeApp(cfg);
     db=firebase.firestore();
     docRef=db.collection("albuns").doc(cloud.code);
     cloudPillSet("saving","Conectando…");
@@ -661,8 +668,14 @@ function openCloudSetup(){
   document.getElementById("modalTitle").textContent="Sincronizar na nuvem";
   document.getElementById("modalIcon").textContent="☁️";
   const ta=document.getElementById("modalText"); ta.readOnly=false;
-  const status = cloud.cfg ? "✅ Configurado" : "⚠️ Ainda não configurado";
-  ta.value = cloud.cfg ? JSON.stringify(cloud.cfg,null,2) : `Cole aqui a configuração do Firebase, algo assim:
+  const ready = !!DEFAULT_CFG;          // app já vem com a nuvem pronta?
+  const status = effCfg() ? "✅ Nuvem pronta" : "⚠️ Ainda não configurado";
+  if(ready){
+    // Só precisa escolher um nome/código. Esconde o campo de config.
+    ta.style.display="none";
+  }else{
+    ta.style.display="";
+    ta.value = cloud.cfg ? JSON.stringify(cloud.cfg,null,2) : `Cole aqui a configuração do Firebase, algo assim:
 
 {
   "apiKey": "AIza...",
@@ -672,24 +685,31 @@ function openCloudSetup(){
   "messagingSenderId": "123456789",
   "appId": "1:123:web:abc123"
 }`;
+  }
   const foot=document.getElementById("modalFoot");
   foot.innerHTML=`
-    <input id="syncCode" placeholder="código de sincronização (ex: david-copa-2026)"
+    <input id="syncCode" placeholder="seu nome/código (ex: david-copa-2026)"
       style="flex:1;min-width:200px;background:#0e1437;border:1px solid var(--line);border-radius:10px;color:#fff;padding:11px 12px;font-size:14px;font-weight:700">
-    <button class="btn dup" id="cloudSave">☁️ Ativar sincronização</button>`;
+    <button class="btn dup" id="cloudSave">☁️ ${ready?"Entrar na nuvem":"Ativar sincronização"}</button>`;
   document.getElementById("syncCode").value = cloud.code || "";
   const oldS=document.getElementById("cloudStatus"); if(oldS) oldS.remove();
+  const hint = ready
+    ? "Escolha um nome só seu (ex: seu-primeiro-nome). Use o MESMO nome em todos os seus aparelhos pra ficarem sincronizados. Para comparar com um amigo, peça o nome dele."
+    : "Cole a config do Firebase e escolha um código. Use o MESMO código em todos os aparelhos.";
   document.querySelector(".modal h3").insertAdjacentHTML("afterend",
-    `<div id="cloudStatus" style="padding:8px 20px;color:var(--muted);font-size:13px;font-weight:700;border-bottom:1px solid var(--line)">${status} — use o MESMO código em todos os aparelhos pra eles ficarem juntos.</div>`);
+    `<div id="cloudStatus" style="padding:8px 20px;color:var(--muted);font-size:13px;font-weight:700;border-bottom:1px solid var(--line)">${status} — ${hint}</div>`);
   foot.querySelector("#cloudSave").onclick=()=>{
     const code=document.getElementById("syncCode").value.trim().toLowerCase().replace(/[^a-z0-9\-]/g,"-");
-    let cfg;
-    try{ cfg=JSON.parse(ta.value); }catch(e){ toast("Configuração inválida ❌"); return; }
-    if(!cfg.projectId || !cfg.apiKey){ toast("Faltam apiKey/projectId ❌"); return; }
-    if(!code){ toast("Escolha um código de sincronização"); return; }
-    cloud={cfg, code};
+    if(!code){ toast("Escolha um nome/código"); return; }
+    let cfg=DEFAULT_CFG;
+    if(!ready){
+      try{ cfg=JSON.parse(ta.value); }catch(e){ toast("Configuração inválida ❌"); return; }
+      if(!cfg.projectId || !cfg.apiKey){ toast("Faltam apiKey/projectId ❌"); return; }
+    }
+    cloud={cfg: ready?null:cfg, code};   // com DEFAULT_CFG, guarda só o código
     localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud));
     modalBg.classList.remove("show");
+    ta.style.display="";
     toast("Nuvem ativada! ☁️");
     cloudConnect();
   };
@@ -761,8 +781,10 @@ function renderTradeHome(){
     showComparison({name,code:null,state:fs});
   };
   tradeBody.querySelector("#inviteBtn").onclick=()=>{
-    if(!cloud.cfg){ toast("Configure a ☁️ Nuvem primeiro"); return; }
-    const link=location.origin+location.pathname+"#cfg="+btoa(JSON.stringify(cloud.cfg));
+    if(!effCfg()){ toast("Configure a ☁️ Nuvem primeiro"); return; }
+    const link=DEFAULT_CFG
+      ? location.origin+location.pathname
+      : location.origin+location.pathname+"#cfg="+btoa(JSON.stringify(cloud.cfg));
     const out=tradeBody.querySelector("#inviteOut");
     out.innerHTML=`<textarea class="tinput" id="inviteLink" readonly style="margin-top:10px;min-height:60px;width:100%">${link}</textarea>
       <button class="btn trade" id="inviteCopy" style="margin-top:8px">📋 Copiar link</button>`;
