@@ -542,8 +542,9 @@ function buildDupText(){
 
 const modalBg=document.getElementById("modalBg");
 function prepModal(readonly){
-  const s=document.getElementById("cloudStatus"); if(s) s.remove();
-  document.getElementById("modalText").readOnly=!!readonly;
+  document.querySelectorAll(".modal-banner").forEach(el=>el.remove());
+  const ta=document.getElementById("modalText");
+  ta.readOnly=!!readonly; ta.style.display="";
 }
 function openShare(title,icon,text){
   prepModal(true);
@@ -577,10 +578,12 @@ document.getElementById("menuBtn").onclick=()=>{
   document.getElementById("modalText").value=text;
   const foot=document.getElementById("modalFoot");
   foot.innerHTML=`
+    <button class="btn trade" id="importFalt">📋 Migrar faltantes</button>
     <button class="btn ghost" id="copyState">📋 Copiar backup</button>
     <button class="btn ghost" id="importState">📥 Importar</button>
     <button class="btn miss" id="clearState">🗑️ Zerar tudo</button>`;
   const ta=document.getElementById("modalText"); ta.readOnly=false;
+  foot.querySelector("#importFalt").onclick=openImportFaltantes;
   foot.querySelector("#copyState").onclick=()=>{navigator.clipboard.writeText(ta.value);toast("Backup copiado!");};
   foot.querySelector("#importState").onclick=()=>{
     try{ const obj=JSON.parse(ta.value); state=obj; save(); render(); modalBg.classList.remove("show"); toast("Importado! ✅"); }
@@ -593,6 +596,61 @@ document.getElementById("menuBtn").onclick=()=>{
   };
   modalBg.classList.add("show");
 };
+
+/* ============ MIGRAR FALTANTES (colar lista de outro app) ============ */
+function openImportFaltantes(){
+  prepModal(false);
+  document.getElementById("modalTitle").textContent="Migrar faltantes";
+  document.getElementById("modalIcon").textContent="📋";
+  const ta=document.getElementById("modalText");
+  ta.value="";
+  ta.placeholder="Cole aqui a lista de FALTANTES (formato do WhatsApp). Ex:\n\n🇧🇷 Brasil:\nBRA4\n\n🇲🇽 México:\nMEX2, MEX6, MEX10\n\nCC2, CC4, FWC5 ...";
+  document.querySelectorAll(".modal-banner").forEach(el=>el.remove());
+  document.querySelector(".modal h3").insertAdjacentHTML("afterend",
+    `<div class="modal-banner" style="padding:10px 20px;color:var(--muted);font-size:13px;font-weight:600;border-bottom:1px solid var(--line);line-height:1.5">Cole a lista de figurinhas que <b>faltam</b>. O app marca essas como falta e <b>todo o resto como “tenho”</b> — ótimo pra migrar de outro app.</div>`);
+  const foot=document.getElementById("modalFoot");
+  foot.innerHTML=`<button class="btn trade" id="analisar">🔍 Analisar lista</button>`;
+  foot.querySelector("#analisar").onclick=()=>analisarFaltantes(ta.value);
+  modalBg.classList.add("show");
+}
+
+function parseFaltantes(text){
+  const valid=new Set();
+  CARDS.forEach(c=>c.nums.forEach(n=>valid.add(c.code+"-"+n)));
+  const matches=text.match(/[A-Z]{2,3}\s*\d+/g)||[];
+  const missing=new Set(), unknown=new Set();
+  matches.forEach(t=>{
+    const m=t.match(/([A-Z]{2,3})\s*(\d+)/);
+    const id=m[1]+"-"+parseInt(m[2],10);
+    if(valid.has(id)) missing.add(id); else unknown.add(t.replace(/\s+/g,""));
+  });
+  return {missing,unknown};
+}
+
+function analisarFaltantes(text){
+  if(!text.trim()){ toast("Cole a lista primeiro"); return; }
+  const {missing,unknown}=parseFaltantes(text);
+  if(missing.size===0){ toast("Não reconheci nenhum código 🤔"); return; }
+  const tenho=TOTAL-missing.size;
+  const unk=[...unknown];
+  const info=`✅ <b>${missing.size}</b> faltantes reconhecidas → você ficará com <b>${tenho}</b> de ${TOTAL} coladas.`
+    +(unk.length?`<br>⚠️ ${unk.length} não reconhecida(s), serão ignoradas: ${unk.slice(0,15).join(", ")}${unk.length>15?"…":""}`:"");
+  document.querySelectorAll(".modal-banner").forEach(el=>el.remove());
+  document.querySelector(".modal h3").insertAdjacentHTML("afterend",
+    `<div class="modal-banner" style="padding:10px 20px;color:var(--txt);font-size:13px;font-weight:600;border-bottom:1px solid var(--line);line-height:1.55">${info}</div>`);
+  const foot=document.getElementById("modalFoot");
+  foot.innerHTML=`<button class="btn ghost" id="reAnalisar">↺ Reanalisar</button>
+    <button class="btn dup" id="aplicarFalt">✅ Aplicar no meu álbum</button>`;
+  foot.querySelector("#reAnalisar").onclick=()=>analisarFaltantes(document.getElementById("modalText").value);
+  foot.querySelector("#aplicarFalt").onclick=()=>{
+    if(!confirm("Vou marcar essas "+missing.size+" como FALTA e TODO o resto como TENHO, substituindo o que estiver marcado agora. Continuar?")) return;
+    state={};
+    CARDS.forEach(c=>c.nums.forEach(n=>{ const id=c.code+"-"+n; if(!missing.has(id)) state[id]=1; }));
+    save(); render();
+    modalBg.classList.remove("show");
+    toast("Importado! "+tenho+" coladas, "+missing.size+" faltam ✅");
+  };
+}
 
 /* ============ TOAST ============ */
 let toastT;
@@ -707,7 +765,7 @@ function openCloudSetup(){
     ? "Escolha um nome só seu (ex: seu-primeiro-nome). Use o MESMO nome em todos os seus aparelhos pra ficarem sincronizados. Para comparar com um amigo, peça o nome dele."
     : "Cole a config do Firebase e escolha um código. Use o MESMO código em todos os aparelhos.";
   document.querySelector(".modal h3").insertAdjacentHTML("afterend",
-    `<div id="cloudStatus" style="padding:8px 20px;color:var(--muted);font-size:13px;font-weight:700;border-bottom:1px solid var(--line)">${status} — ${hint}</div>`);
+    `<div id="cloudStatus" class="modal-banner" style="padding:8px 20px;color:var(--muted);font-size:13px;font-weight:700;border-bottom:1px solid var(--line)">${status} — ${hint}</div>`);
   foot.querySelector("#cloudSave").onclick=()=>{
     const code=document.getElementById("syncCode").value.trim().toLowerCase().replace(/[^a-z0-9\-]/g,"-");
     if(!code){ toast("Escolha um nome/código"); return; }
