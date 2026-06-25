@@ -145,7 +145,8 @@
   /* ---------- SHARE / TOAST / MODAL ---------- */
   .fab{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(12,18,48,.9);
     backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px 14px;
-    display:flex;gap:10px;justify-content:center}
+    display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .btn.trade{background:linear-gradient(160deg,#5fa8ff,#3b7dff);color:#fff}
   .btn{border:0;border-radius:13px;padding:13px 18px;font-size:15px;font-weight:800;cursor:pointer;
     display:inline-flex;align-items:center;gap:8px;transition:.15s;box-shadow:var(--shadow)}
   .btn.miss{background:linear-gradient(160deg,#ff6b6b,#e23a45);color:#fff}
@@ -165,6 +166,38 @@
   .modal .foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
   .modal .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;background:none;border:0}
 
+  /* ---- TROCAS ---- */
+  .tradeModal{max-width:720px}
+  .tbox{background:#0e1437;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+  .tbox h4{margin:0 0 10px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .trow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tinput{flex:1;min-width:120px;background:#0a1030;border:1px solid var(--line);border-radius:10px;
+    color:#fff;padding:11px 12px;font-size:14px;font-weight:700}
+  .tinput::placeholder{color:var(--muted)}
+  .friend-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:99px;padding:7px 8px 7px 13px;font-weight:700;font-size:13px;cursor:pointer}
+  .friend-chip:hover{border-color:#fff}
+  .friend-chip .del{width:20px;height:20px;border-radius:99px;background:rgba(255,255,255,.1);display:grid;
+    place-items:center;font-size:13px}
+  .friend-chip .del:hover{background:var(--red);color:#fff}
+  .tsummary{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 14px}
+  .tcard{flex:1;min-width:130px;background:#0e1437;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .tcard b{display:block;font-size:24px;font-weight:800}
+  .tcard.take b{color:#7ef0ad}.tcard.give b{color:var(--gold)}
+  .tcard span{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .tlist h4{margin:14px 0 8px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .titems{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px}
+  .titem{display:flex;align-items:center;gap:8px;background:#0e1437;border:1px solid var(--line);
+    border-radius:10px;padding:7px 9px;cursor:pointer;user-select:none;font-weight:700;font-size:13px}
+  .titem.sel{border-color:var(--green);background:rgba(31,193,107,.12)}
+  .titem .cb{width:18px;height:18px;border-radius:5px;border:2px solid var(--muted);flex:0 0 auto;display:grid;place-items:center;font-size:11px}
+  .titem.sel .cb{background:var(--green);border-color:var(--green);color:#063}
+  .titem img{width:22px;height:15px;border-radius:3px;object-fit:cover;flex:0 0 auto}
+  .titem .badge{width:22px;height:15px;border-radius:3px;display:grid;place-items:center;font-size:9px;font-weight:900;flex:0 0 auto}
+  .selall{font-size:12px;color:var(--blue);font-weight:800;cursor:pointer;margin-left:auto}
+  .tempty{color:var(--muted);font-weight:700;padding:10px 0;font-size:13px}
+  .chkrow{display:flex;align-items:center;gap:9px;margin:14px 0 4px;font-size:13px;font-weight:700;color:var(--txt)}
+  .chkrow input{width:18px;height:18px;accent-color:var(--green)}
   .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);z-index:80;
     background:#fff;color:#12183f;padding:12px 20px;border-radius:99px;font-weight:800;font-size:14px;
     box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.25s}
@@ -231,8 +264,9 @@
 </div>
 
 <div class="fab">
-  <button class="btn miss" id="shareMiss">📋 Faltas pro Whats</button>
-  <button class="btn dup" id="shareDup">📋 Repetidas pro Whats</button>
+  <button class="btn trade" id="tradeBtn">👥 Trocar</button>
+  <button class="btn miss" id="shareMiss">📋 Faltas</button>
+  <button class="btn dup" id="shareDup">📋 Repetidas</button>
   <button class="btn ghost" id="menuBtn">⚙️</button>
 </div>
 
@@ -244,6 +278,13 @@
       <textarea id="modalText" readonly></textarea>
     </div>
     <div class="foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="tradeBg">
+  <div class="modal tradeModal">
+    <h3>👥 <span>Trocar com amigos</span><button class="x" id="tradeX">&times;</button></h3>
+    <div class="body" id="tradeBody"></div>
   </div>
 </div>
 
@@ -654,6 +695,213 @@ function openCloudSetup(){
   };
   modalBg.classList.add("show");
 }
+
+/* ============ TROCAS COM AMIGOS ============ */
+const FRIENDS_KEY="figurinhas_friends_v1";
+let friends=[]; try{ friends=JSON.parse(localStorage.getItem(FRIENDS_KEY))||[]; }catch(e){ friends=[]; }
+function saveFriends(){ try{ localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends)); }catch(e){} }
+function upsertFriend(name,code){
+  if(!code) return;
+  const i=friends.findIndex(f=>f.code===code);
+  if(i>=0) friends[i].name=name; else friends.push({name,code});
+  saveFriends();
+}
+
+const tradeBg=document.getElementById("tradeBg");
+const tradeBody=document.getElementById("tradeBody");
+let selTake=new Set(), selGive=new Set();
+
+function miniFlag(it){
+  if(it.type==="special"){
+    if(it.kind==="cc") return '<div class="badge" style="background:#e2231a;color:#fff">CC</div>';
+    return '<div class="badge" style="background:#ffcf3f;color:#5a3a00">🏆</div>';
+  }
+  return '<img loading="lazy" src="https://flagcdn.com/w40/'+it.iso+'.png" onerror="this.style.visibility=\'hidden\'">';
+}
+
+document.getElementById("tradeBtn").onclick=openTrades;
+document.getElementById("tradeX").onclick=()=>tradeBg.classList.remove("show");
+tradeBg.addEventListener("click",e=>{ if(e.target===tradeBg) tradeBg.classList.remove("show"); });
+
+function openTrades(){ renderTradeHome(); tradeBg.classList.add("show"); }
+
+function renderTradeHome(){
+  selTake.clear(); selGive.clear();
+  tradeBody.innerHTML=`
+    <div class="tbox">
+      <h4>➕ Comparar com um amigo</h4>
+      <div class="trow">
+        <input class="tinput" id="fName" placeholder="Nome do amigo (ex: João)" autocomplete="off">
+        <input class="tinput" id="fCode" placeholder="código do amigo (do ☁️ Nuvem dele)" autocomplete="off">
+        <button class="btn trade" id="fGo">Comparar</button>
+      </div>
+      <div class="tempty">Peça o <b>código de sincronização</b> que aparece no ☁️ Nuvem do seu amigo. Vocês precisam estar no mesmo grupo (mesmo projeto Firebase — use o convite abaixo).</div>
+      <div class="trow" style="margin-top:6px">
+        <textarea class="tinput" id="fPaste" placeholder="(alternativa) cole aqui o backup do amigo" style="min-height:48px;resize:vertical"></textarea>
+        <button class="btn ghost" id="fPasteGo">Usar backup</button>
+      </div>
+    </div>
+    ${friends.length?`<div class="tbox"><h4>👥 Seus amigos salvos</h4><div class="trow" id="friendChips"></div></div>`:""}
+    <div class="tbox">
+      <h4>📨 Convidar amigo pro grupo de trocas</h4>
+      <div class="tempty">Gera um link que já deixa o app configurado pro seu amigo. Ele abre, escolhe um nome e já dá pra trocar.</div>
+      <button class="btn ghost" id="inviteBtn">📨 Gerar link de convite</button>
+      <div id="inviteOut"></div>
+    </div>`;
+
+  tradeBody.querySelector("#fGo").onclick=()=>{
+    const name=tradeBody.querySelector("#fName").value.trim()||"Amigo";
+    const code=tradeBody.querySelector("#fCode").value.trim().toLowerCase().replace(/[^a-z0-9\-]/g,"-");
+    if(!code){ toast("Informe o código do amigo"); return; }
+    compareByCode(name,code);
+  };
+  tradeBody.querySelector("#fPasteGo").onclick=()=>{
+    const name=tradeBody.querySelector("#fName").value.trim()||"Amigo";
+    let fs; try{ fs=JSON.parse(tradeBody.querySelector("#fPaste").value); }catch(e){ toast("Backup inválido ❌"); return; }
+    showComparison({name,code:null,state:fs});
+  };
+  tradeBody.querySelector("#inviteBtn").onclick=()=>{
+    if(!cloud.cfg){ toast("Configure a ☁️ Nuvem primeiro"); return; }
+    const link=location.origin+location.pathname+"#cfg="+btoa(JSON.stringify(cloud.cfg));
+    const out=tradeBody.querySelector("#inviteOut");
+    out.innerHTML=`<textarea class="tinput" id="inviteLink" readonly style="margin-top:10px;min-height:60px;width:100%">${link}</textarea>
+      <button class="btn trade" id="inviteCopy" style="margin-top:8px">📋 Copiar link</button>`;
+    out.querySelector("#inviteCopy").onclick=()=>{
+      const t=out.querySelector("#inviteLink"); navigator.clipboard.writeText(t.value)
+        .then(()=>toast("Link copiado! Mande pro amigo 📨")).catch(()=>{t.select();document.execCommand("copy");toast("Copiado!");});
+    };
+  };
+
+  const chips=tradeBody.querySelector("#friendChips");
+  if(chips){
+    friends.forEach((f,idx)=>{
+      const c=document.createElement("span");
+      c.className="friend-chip";
+      c.innerHTML=`<span>👤 ${f.name}</span><span class="del" title="remover">&times;</span>`;
+      c.querySelector("span:first-child").onclick=()=>compareByCode(f.name,f.code);
+      c.onclick=(e)=>{ if(!e.target.classList.contains("del")) compareByCode(f.name,f.code); };
+      c.querySelector(".del").onclick=(e)=>{ e.stopPropagation(); friends.splice(idx,1); saveFriends(); renderTradeHome(); };
+      chips.appendChild(c);
+    });
+  }
+}
+
+function compareByCode(name,code){
+  if(!db){ toast("Ative a ☁️ Nuvem primeiro (ou use o backup do amigo)"); return; }
+  toast("Buscando álbum de "+name+"…");
+  db.collection("albuns").doc(code).get().then(snap=>{
+    if(!snap.exists || !snap.data().state){ toast("Não encontrei álbum com esse código 🤷"); return; }
+    upsertFriend(name,code);
+    showComparison({name,code,state:snap.data().state});
+  }).catch(e=>{ toast("Erro ao buscar na nuvem"); console.error(e); });
+}
+
+function buildDiff(fs){
+  const take=[], give=[];
+  CARDS.forEach(c=>c.nums.forEach(n=>{
+    const id=c.code+"-"+n, mine=get(id), th=fs[id]||0;
+    const base={id,code:c.code,n,name:c.name,type:c.type,kind:c.kind,iso:c.iso};
+    if(mine===0 && th>=2) take.push(base);  // falta pra mim, ele tem repetida
+    if(mine>=2 && th===0) give.push(base);  // tenho repetida, falta pra ele
+  }));
+  return {take,give};
+}
+
+function itemRow(it,side){
+  const sel=(side==="take"?selTake:selGive).has(it.id);
+  return `<div class="titem${sel?' sel':''}" data-id="${it.id}" data-side="${side}">
+    <div class="cb">✓</div>${miniFlag(it)}<span>${it.code} ${it.n}</span></div>`;
+}
+
+function showComparison(friend){
+  selTake.clear(); selGive.clear();
+  const {take,give}=buildDiff(friend.state);
+  const perfeitas=Math.min(take.length,give.length);
+  const cloudFriend=!!friend.code && !!db;
+  tradeBody.innerHTML=`
+    <button class="btn ghost" id="backHome" style="margin-bottom:12px">‹ Voltar</button>
+    <h4 style="margin:0 0 4px">Troca com <b>${friend.name}</b></h4>
+    <div class="tsummary">
+      <div class="tcard take"><b>${take.length}</b><span>você pega</span></div>
+      <div class="tcard give"><b>${give.length}</b><span>você dá</span></div>
+      <div class="tcard"><b>${perfeitas}</b><span>troca casada</span></div>
+    </div>
+    <div class="tlist">
+      <h4>📥 Pegar com ${friend.name} <span style="color:var(--muted);font-weight:600">(faltam pra você, ele tem repetida)</span>
+        ${take.length?'<span class="selall" data-sel="take">marcar todas</span>':''}</h4>
+      <div class="titems" id="takeList">${take.map(it=>itemRow(it,"take")).join("")||'<div class="tempty">Nada pra pegar com ele agora 🙂</div>'}</div>
+    </div>
+    <div class="tlist">
+      <h4>🎁 Dar para ${friend.name} <span style="color:var(--muted);font-weight:600">(suas repetidas que faltam pra ele)</span>
+        ${give.length?'<span class="selall" data-sel="give">marcar todas</span>':''}</h4>
+      <div class="titems" id="giveList">${give.map(it=>itemRow(it,"give")).join("")||'<div class="tempty">Você não tem repetida que ele precise 🙂</div>'}</div>
+    </div>
+    ${cloudFriend?`<label class="chkrow"><input type="checkbox" id="updFriend" checked> Atualizar também o álbum do ${friend.name} na nuvem (recomendado)</label>`:''}
+    <div class="foot" style="border:0;padding:14px 0 4px;justify-content:flex-end">
+      <button class="btn trade" id="confirmTrade">✅ Registrar troca</button>
+    </div>`;
+
+  tradeBody.querySelector("#backHome").onclick=renderTradeHome;
+
+  tradeBody.querySelectorAll(".titem").forEach(el=>{
+    el.onclick=()=>{
+      const id=el.dataset.id, set=(el.dataset.side==="take"?selTake:selGive);
+      if(set.has(id)) set.delete(id); else set.add(id);
+      el.classList.toggle("sel");
+    };
+  });
+  tradeBody.querySelectorAll(".selall").forEach(s=>{
+    s.onclick=()=>{
+      const side=s.dataset.sel, arr=(side==="take"?take:give), set=(side==="take"?selTake:selGive);
+      const all=arr.every(it=>set.has(it.id));
+      arr.forEach(it=>{ if(all) set.delete(it.id); else set.add(it.id); });
+      tradeBody.querySelectorAll('.titem[data-side="'+side+'"]').forEach(el=>el.classList.toggle("sel",!all));
+      s.textContent=all?"marcar todas":"desmarcar todas";
+    };
+  });
+
+  tradeBody.querySelector("#confirmTrade").onclick=()=>{
+    if(selTake.size===0 && selGive.size===0){ toast("Selecione o que foi trocado"); return; }
+    const upd=cloudFriend && tradeBody.querySelector("#updFriend").checked;
+    confirmTrade(friend,upd);
+  };
+}
+
+function confirmTrade(friend,updateFriend){
+  // Eu recebo (take): passo a ter
+  selTake.forEach(id=>{ if(get(id)<1) setVal(id,1); });
+  // Eu dou (give): baixa numa repetida minha
+  selGive.forEach(id=>{ const v=get(id); if(v>=2) setVal(id,v-1); });
+  render();
+
+  if(updateFriend && friend.code && db){
+    const fs=Object.assign({},friend.state);
+    selTake.forEach(id=>{ const v=fs[id]||0; if(v>=2) fs[id]=v-1; }); // ele me deu -> baixa repetida dele
+    selGive.forEach(id=>{ if((fs[id]||0)<1) fs[id]=1; });            // ele recebeu -> passa a ter
+    db.collection("albuns").doc(friend.code).set({state:fs,updatedAt:Date.now()})
+      .then(()=>toast("Troca registrada nos dois álbuns! ✅"))
+      .catch(e=>{ toast("Sua parte salvou; a do amigo falhou."); console.error(e); });
+  }else{
+    toast("Troca registrada no seu álbum! ✅");
+  }
+  selTake.clear(); selGive.clear();
+  tradeBg.classList.remove("show");
+}
+
+/* Link de convite: configura o mesmo projeto pro amigo */
+(function handleInviteHash(){
+  const m=location.hash.match(/cfg=([^&]+)/);
+  if(!m) return;
+  try{
+    const cfg=JSON.parse(atob(m[1]));
+    if(cfg.apiKey && cfg.projectId){
+      cloud.cfg=cfg;
+      localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud));
+      history.replaceState(null,"",location.pathname);
+      setTimeout(()=>{ openCloudSetup(); toast("Convite recebido! Escolha seu nome/código ☁️"); },400);
+    }
+  }catch(e){}
+})();
 
 /* ============ INIT ============ */
 render();
