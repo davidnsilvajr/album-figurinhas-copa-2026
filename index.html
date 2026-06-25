@@ -148,7 +148,8 @@
 
   /* ---------- SHARE / TOAST / MODAL ---------- */
   .fab{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(12,18,48,.9);
-    backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px 14px;
+    backdrop-filter:blur(10px);border-top:1px solid var(--line);
+    padding:12px 14px;padding-bottom:calc(12px + env(safe-area-inset-bottom));
     display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
   .btn.trade{background:linear-gradient(160deg,#5fa8ff,#3b7dff);color:#fff}
   .btn{border:0;border-radius:13px;padding:13px 18px;font-size:15px;font-weight:800;cursor:pointer;
@@ -217,9 +218,20 @@
   @media(max-width:520px){
     .grid{grid-template-columns:1fr}
     .titles h1{font-size:18px}
-    .btn{padding:12px 14px;font-size:14px}
-    .stat{min-width:80px;padding:8px 10px}
+    .stat{min-width:0;flex:1;padding:8px 6px}
     .stat b{font-size:17px}
+    .stat span{font-size:10px}
+    /* barra inferior: uma linha só, botões dividindo o espaço */
+    .fab{gap:6px;flex-wrap:nowrap;padding:10px 10px;padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+    .fab .btn{flex:1;min-width:0;padding:12px 6px;font-size:13px;justify-content:center;gap:5px}
+    .fab .btn.ghost{flex:0 0 auto;width:48px;padding:12px 0}
+    .stats{width:100%;gap:6px}
+    .search{min-width:0}
+    .cloudpill{margin-left:0}
+  }
+  @media(max-width:360px){
+    .fab .btn{font-size:12px;padding:11px 4px}
+    .stickers{gap:5px}
   }
 </style>
 </head>
