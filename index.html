@@ -605,9 +605,18 @@ function toast(msg){
 /* ============ SINCRONIZAÇÃO NA NUVEM (Firebase) ============ */
 const CLOUD_KEY="figurinhas_cloud_cfg_v1";
 
-/* CONFIG PADRÃO DA NUVEM — preenchida pelo David. Quando definida, o app já
-   vem com a nuvem pronta: o usuário só escolhe um nome/código pra entrar. */
-const DEFAULT_CFG = null;
+/* CONFIG PADRÃO DA NUVEM — projeto Firebase "figurinhas-6df68". Com isso o app
+   já vem com a nuvem pronta: o usuário só escolhe um nome/código pra entrar.
+   (A config web do Firebase é pública por design; a segurança fica nas Regras.) */
+const DEFAULT_CFG = {
+  apiKey: "AIzaSyDPaSqDIT_-UKa0jTRwOPmnTMtxKTajUkk",
+  authDomain: "figurinhas-6df68.firebaseapp.com",
+  projectId: "figurinhas-6df68",
+  storageBucket: "figurinhas-6df68.firebasestorage.app",
+  messagingSenderId: "1446646333",
+  appId: "1:1446646333:web:aac108f594ba23fa951054",
+  measurementId: "G-P50JVG2GF1"
+};
 
 let cloud = { cfg:null, code:null };
 let db=null, docRef=null, unsub=null, pushTimer=null, applyingRemote=false;
