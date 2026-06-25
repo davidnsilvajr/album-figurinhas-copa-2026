@@ -137,9 +137,13 @@
   .st.dup::after{content:"";position:absolute;inset:0;border-radius:11px;z-index:1;
     background:linear-gradient(135deg,rgba(255,255,255,.6) 0%,rgba(255,255,255,0) 45%)}
   .st .dupbadge{
-    position:absolute;top:-6px;right:-6px;z-index:4;background:var(--red);color:#fff;
-    font-size:11px;font-weight:900;min-width:20px;height:20px;border-radius:99px;display:grid;place-items:center;
-    padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #131a44}
+    position:absolute;top:-7px;right:-7px;z-index:4;background:var(--red);color:#fff;
+    font-size:11px;font-weight:900;min-width:22px;height:22px;border-radius:99px;display:grid;place-items:center;
+    padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #131a44;cursor:pointer}
+  .st .dupbadge::before{content:"−";position:absolute;left:-13px;top:50%;transform:translateY(-50%);
+    color:#ff9b9b;font-size:13px;font-weight:900;opacity:0;transition:opacity .15s}
+  .st.dup:hover .dupbadge::before{opacity:1}
+  .st .dupbadge:hover{background:#ff5965}
   .st.hl{outline:3px solid var(--blue);outline-offset:2px}
 
   /* ---------- SHARE / TOAST / MODAL ---------- */
@@ -238,7 +242,7 @@
       <span><i class="lg-falta"></i>Falta</span>
       <span><i class="lg-have"></i>Tenho</span>
       <span><i class="lg-dup"></i>Repetida</span>
-      <span class="hint">Toque: Falta → Tenho → +1 repetida… · Toque longo / clique direito: volta</span>
+      <span class="hint">Toque: Falta → Tenho → +1 repetida… · Para <b>remover</b> 1 repetida, toque no selo vermelho <b>+N</b> (ou toque longo / clique direito)</span>
     </div>
   </div>
 </header>
@@ -436,9 +440,14 @@ function cycle(id,back){
   setVal(id,v);
 }
 
-/* clique normal avança; clique-direito / toque-longo volta */
+/* clique normal avança; tocar no selo +N (ou clique-direito / toque-longo) remove 1 */
+let suppressClick=false;
 grid.addEventListener("click",e=>{
   const st=e.target.closest(".st"); if(!st) return;
+  if(suppressClick){ suppressClick=false; return; }   // ignora clique após toque longo
+  if(e.target.closest(".dupbadge")){                  // tocou no selo vermelho -> remove 1 repetida
+    cycle(st.dataset.id,true); refreshSticker(st); return;
+  }
   cycle(st.dataset.id,false);
   refreshSticker(st);
 });
@@ -449,17 +458,14 @@ grid.addEventListener("contextmenu",e=>{
   refreshSticker(st);
 });
 /* toque longo (mobile) volta */
-let pressTimer=null, longPressed=false;
+let pressTimer=null;
 grid.addEventListener("touchstart",e=>{
   const st=e.target.closest(".st"); if(!st) return;
-  longPressed=false;
-  pressTimer=setTimeout(()=>{ longPressed=true; cycle(st.dataset.id,true); refreshSticker(st);
+  pressTimer=setTimeout(()=>{ pressTimer=null; suppressClick=true; cycle(st.dataset.id,true); refreshSticker(st);
     if(navigator.vibrate)navigator.vibrate(15); },420);
 },{passive:true});
-grid.addEventListener("touchend",e=>{
-  if(pressTimer)clearTimeout(pressTimer);
-  if(longPressed){ longPressed=false; e.preventDefault(); }
-},{passive:false});
+grid.addEventListener("touchmove",()=>{ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; } },{passive:true});
+grid.addEventListener("touchend",()=>{ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; } },{passive:true});
 
 function refreshSticker(st){
   const id=st.dataset.id, n=id.split("-")[1];
