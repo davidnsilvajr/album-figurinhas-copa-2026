@@ -34,7 +34,9 @@
     min-height:100vh;
     padding-bottom:120px;
   }
-  .wrap{max-width:1180px;margin:0 auto;padding:0 14px}
+  .wrap{max-width:1180px;margin:0 auto;
+    padding-left:calc(18px + env(safe-area-inset-left));
+    padding-right:calc(18px + env(safe-area-inset-right))}
 
   /* ---------- HEADER ---------- */
   header{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
@@ -257,10 +259,7 @@
   <div class="login-card">
     <div class="login-logo">🏆</div>
     <h2>Álbum Copa 2026</h2>
-    <p>Entre com o seu nome de usuário para abrir (ou começar) o seu álbum.</p>
-    <input id="loginInput" type="text" placeholder="seu nome (ex: joao)" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button class="btn trade" id="loginBtn">Entrar no meu álbum →</button>
-    <div class="login-hint">Use sempre o <b>mesmo nome</b> em todos os seus aparelhos pra ficarem sincronizados.<br>Para trocar com um amigo, você vai precisar do nome dele.</div>
+    <div id="loginContent"></div>
   </div>
 </div>
 
@@ -620,11 +619,13 @@ document.getElementById("menuBtn").onclick=()=>{
     <button class="btn dup" id="importRep">♻️ Migrar repetidas</button>
     <button class="btn ghost" id="copyState">📋 Copiar backup</button>
     <button class="btn ghost" id="importState">📥 Importar</button>
+    <button class="btn ghost" id="setPass">🔒 Definir senha</button>
     <button class="btn ghost" id="switchUser">🚪 Trocar usuário</button>
     <button class="btn miss" id="clearState">🗑️ Zerar tudo</button>`;
   const ta=document.getElementById("modalText"); ta.readOnly=false;
   foot.querySelector("#importFalt").onclick=openImportFaltantes;
   foot.querySelector("#importRep").onclick=openImportRepetidas;
+  foot.querySelector("#setPass").onclick=()=>{ modalBg.classList.remove("show"); openSetPassword(); };
   foot.querySelector("#switchUser").onclick=()=>{ modalBg.classList.remove("show"); logout(); };
   foot.querySelector("#copyState").onclick=()=>{navigator.clipboard.writeText(ta.value);toast("Backup copiado!");};
   foot.querySelector("#importState").onclick=()=>{
@@ -786,17 +787,23 @@ function cloudPillSet(cls,txt){
   document.getElementById("cloudPillTxt").textContent=txt;
 }
 
+/* payload de gravação do MEU álbum — inclui a senha pra ela não ser apagada */
+function myDoc(){
+  const d={ state:state, updatedAt:Date.now() };
+  if(myPassHash) d.pass=myPassHash;
+  return d;
+}
+
 function cloudConnect(){
   const cfg=effCfg();
   if(!cfg || !cloud.code){ cloudPillSet("","Nuvem"); return; }
-  if(typeof firebase==="undefined"){ cloudPillSet("err","Sem internet"); return; }
+  if(!ensureDb()){ cloudPillSet("err","Sem internet"); return; }
   try{
-    if(!firebase.apps.length) firebase.initializeApp(cfg);
-    db=firebase.firestore();
     docRef=db.collection("albuns").doc(cloud.code);
     cloudPillSet("saving","Conectando…");
     if(unsub) unsub();
     unsub=docRef.onSnapshot(snap=>{
+      if(snap.exists && snap.data().pass) myPassHash=snap.data().pass;   // mantém o hash em memória
       if(snap.exists && snap.data().state){
         const remote=snap.data().state;
         if(JSON.stringify(remote)!==JSON.stringify(state)){
@@ -809,8 +816,8 @@ function cloudConnect(){
         }
         cloudPillSet("on","☁️ "+cloud.code);
       }else{
-        // documento novo: envia o que temos agora
-        docRef.set({state:state, updatedAt:Date.now()}).then(()=>cloudPillSet("on","☁️ "+cloud.code));
+        // documento novo: envia o que temos agora (substituição completa, com senha)
+        docRef.set(myDoc()).then(()=>cloudPillSet("on","☁️ "+cloud.code));
       }
     }, err=>{ cloudPillSet("err","Erro nuvem"); console.error(err); });
   }catch(e){ cloudPillSet("err","Erro config"); console.error(e); }
@@ -821,35 +828,107 @@ function cloudPush(){
   cloudPillSet("saving","Salvando…");
   clearTimeout(pushTimer);
   pushTimer=setTimeout(()=>{
-    docRef.set({state:state, updatedAt:Date.now()})
+    docRef.set(myDoc())     // substituição completa (deleção funciona); senha vai junto
       .then(()=>cloudPillSet("on","☁️ "+cloud.code))
       .catch(e=>{ cloudPillSet("err","Erro ao salvar"); console.error(e); });
   },800);
 }
 
-/* ============ LOGIN POR USUÁRIO ============ */
+/* ============ LOGIN POR USUÁRIO (com senha) ============ */
+let myPassHash=null;   // hash da senha do usuário logado (mantido em memória)
 function normalizeUser(s){ return (s||"").trim().toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9\-]/g,""); }
-function showLogin(prefill){
+
+function ensureDb(){
+  if(db) return true;
+  const cfg=effCfg();
+  if(!cfg || typeof firebase==="undefined") return false;
+  try{ if(!firebase.apps.length) firebase.initializeApp(cfg); db=firebase.firestore(); return true; }
+  catch(e){ console.error(e); return false; }
+}
+async function hashPw(code,pw){
+  const data=new TextEncoder().encode(code+":"+pw);
+  const buf=await crypto.subtle.digest("SHA-256",data);
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+const loginContent=document.getElementById("loginContent");
+function showLogin(prefill){ renderLoginUser(prefill); document.getElementById("loginBg").classList.add("show"); }
+function hideLogin(){ document.getElementById("loginBg").classList.remove("show"); }
+
+function renderLoginUser(prefill){
+  loginContent.innerHTML=`
+    <p>Entre com o seu <b>nome de usuário</b>.</p>
+    <input id="loginInput" type="text" placeholder="seu nome (ex: joao)" autocomplete="off" autocapitalize="off" spellcheck="false" value="${prefill||""}">
+    <button class="btn trade" id="loginBtn">Continuar →</button>
+    <div class="login-hint">Use sempre o <b>mesmo nome</b> em todos os seus aparelhos.<br>Para trocar com um amigo, você vai precisar do nome dele.</div>`;
   const inp=document.getElementById("loginInput");
-  inp.value=prefill||"";
-  document.getElementById("loginBg").classList.add("show");
+  document.getElementById("loginBtn").onclick=loginContinue;
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter") loginContinue(); });
   setTimeout(()=>inp.focus(),100);
 }
-function hideLogin(){ document.getElementById("loginBg").classList.remove("show"); }
-function doLogin(){
+
+async function loginContinue(){
   const code=normalizeUser(document.getElementById("loginInput").value);
   if(!code){ toast("Digite um nome de usuário"); return; }
+  if(!ensureDb()){ toast("Sem conexão com a nuvem"); return; }
+  const btn=document.getElementById("loginBtn"); btn.textContent="Verificando…"; btn.disabled=true;
+  try{
+    const snap=await db.collection("albuns").doc(code).get();
+    if(snap.exists && snap.data().pass){
+      renderLoginPass(code,"enter",snap.data().pass);          // já tem senha -> pede senha
+    }else if(snap.exists){
+      renderLoginPass(code,"create");                          // álbum antigo sem senha -> cria agora
+    }else{
+      renderLoginPass(code,"create");                          // novo usuário -> cria senha
+    }
+  }catch(e){ console.error(e); toast("Erro ao verificar usuário"); btn.textContent="Continuar →"; btn.disabled=false; }
+}
+
+function renderLoginPass(code,mode,storedHash){
+  const isEnter=mode==="enter";
+  loginContent.innerHTML=`
+    <p>${isEnter?`Olá, <b>${code}</b>! Digite a sua senha.`:`Crie uma <b>senha</b> para proteger o álbum <b>${code}</b>.`}</p>
+    <input id="loginPass" type="password" placeholder="${isEnter?"sua senha":"crie uma senha (mín. 4)"}" autocomplete="${isEnter?"current-password":"new-password"}">
+    <button class="btn trade" id="passBtn">${isEnter?"Entrar →":"Criar senha e entrar →"}</button>
+    <div class="login-hint"><span id="backUser" style="cursor:pointer;text-decoration:underline">‹ usar outro nome</span></div>`;
+  const inp=document.getElementById("loginPass");
+  const go=()=>isEnter?verifyPass(code,storedHash):createPass(code);
+  document.getElementById("passBtn").onclick=go;
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
+  document.getElementById("backUser").onclick=()=>renderLoginUser(code);
+  setTimeout(()=>inp.focus(),100);
+}
+
+async function verifyPass(code,storedHash){
+  const pw=document.getElementById("loginPass").value;
+  if(!pw){ toast("Digite a senha"); return; }
+  const h=await hashPw(code,pw);
+  if(h!==storedHash){ toast("Senha incorreta ❌"); return; }
+  myPassHash=storedHash;
+  finalizeLogin(code);
+}
+async function createPass(code){
+  const pw=document.getElementById("loginPass").value;
+  if(pw.length<4){ toast("A senha precisa ter ao menos 4 caracteres"); return; }
+  const h=await hashPw(code,pw);
+  myPassHash=h;
+  try{ await db.collection("albuns").doc(code).set({pass:h, updatedAt:Date.now()},{merge:true}); }catch(e){ console.error(e); }
+  finalizeLogin(code);
+  toast("Senha criada! Álbum protegido 🔒");
+}
+
+function finalizeLogin(code){
   cloud.code=code;
   localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud));
-  loadLocalAlbum();          // cache local desse usuário (se houver)
+  loadLocalAlbum();
   render();
   hideLogin();
-  cloudConnect();            // puxa o álbum da nuvem desse nome
-  toast("Bem-vindo, "+code+"! ☁️");
+  cloudConnect();
 }
+
 function logout(){
   if(unsub){ unsub(); unsub=null; }
-  docRef=null;
+  docRef=null; myPassHash=null;
   cloud.code=null;
   localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud));
   state={};
@@ -857,10 +936,32 @@ function logout(){
   cloudPillSet("","Nuvem");
   showLogin();
 }
-document.getElementById("loginBtn").onclick=doLogin;
-document.getElementById("loginInput").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
 
-/* O indicador de nuvem agora abre a troca de usuário */
+/* Definir/alterar a senha estando logado */
+function openSetPassword(){
+  if(!cloud.code){ toast("Entre no seu álbum primeiro"); return; }
+  if(!ensureDb()){ toast("Sem conexão com a nuvem"); return; }
+  loginContent.innerHTML=`
+    <p>Defina uma <b>senha</b> para proteger o álbum <b>${cloud.code}</b>.</p>
+    <input id="loginPass" type="password" placeholder="nova senha (mín. 4)" autocomplete="new-password">
+    <button class="btn trade" id="passBtn">🔒 Salvar senha</button>
+    <div class="login-hint"><span id="cancelPass" style="cursor:pointer;text-decoration:underline">cancelar</span></div>`;
+  document.getElementById("loginBg").classList.add("show");
+  const inp=document.getElementById("loginPass");
+  const save=async()=>{
+    const pw=inp.value;
+    if(pw.length<4){ toast("A senha precisa ter ao menos 4 caracteres"); return; }
+    const h=await hashPw(cloud.code,pw); myPassHash=h;
+    try{ await db.collection("albuns").doc(cloud.code).set({pass:h,updatedAt:Date.now()},{merge:true}); }catch(e){ console.error(e); }
+    hideLogin(); toast("Senha definida! Álbum protegido 🔒");
+  };
+  document.getElementById("passBtn").onclick=save;
+  inp.addEventListener("keydown",e=>{ if(e.key==="Enter") save(); });
+  document.getElementById("cancelPass").onclick=hideLogin;
+  setTimeout(()=>inp.focus(),100);
+}
+
+/* O indicador de nuvem abre a troca de usuário */
 document.getElementById("cloudPill").onclick=()=>{
   if(cloud.code){ if(confirm("Você está como “"+cloud.code+"”.\nTrocar de usuário? (seus dados ficam salvos na nuvem)")) logout(); }
   else showLogin();
@@ -1126,7 +1227,7 @@ function confirmTrade(friend,updateFriend){
     const fs=Object.assign({},friend.state);
     selTake.forEach(id=>{ const v=fs[id]||0; if(v>=2) fs[id]=v-1; }); // ele me deu -> baixa repetida dele
     selGive.forEach(id=>{ if((fs[id]||0)<1) fs[id]=1; });            // ele recebeu -> passa a ter
-    db.collection("albuns").doc(friend.code).set({state:fs,updatedAt:Date.now()})
+    db.collection("albuns").doc(friend.code).set({state:fs,updatedAt:Date.now()},{merge:true})
       .then(()=>toast("Troca registrada nos dois álbuns! ✅"))
       .catch(e=>{ toast("Sua parte salvou; a do amigo falhou."); console.error(e); });
   }else{
