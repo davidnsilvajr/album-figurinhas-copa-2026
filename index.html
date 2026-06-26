@@ -408,17 +408,28 @@ function cardStats(card){
   return {have,dup,total:card.nums.length};
 }
 
+/* figurinhas visíveis dentro de um card, conforme o filtro ativo */
+function visibleNums(card){
+  if(activeFilter==="miss") return card.nums.filter(n=>get(card.code+"-"+n)===0);
+  if(activeFilter==="dup")  return card.nums.filter(n=>get(card.code+"-"+n)>=2);
+  return card.nums;   // all / done
+}
+
+function miniLabel(card,s){
+  if(activeFilter==="miss"){ const f=s.total-s.have; return `${f} ${f===1?"falta":"faltam"} · ${s.have}/${s.total} coladas`; }
+  if(activeFilter==="dup")  return `${s.dup} repetida${s.dup>1?"s":""} pra trocar`;
+  return `${s.have}/${s.total} coladas${s.dup?` · ${s.dup} repetida${s.dup>1?"s":""}`:""}`;
+}
+
 function matchFilter(card){
   if(searchTerm){
     const t=searchTerm.toLowerCase();
     if(!(card.name.toLowerCase().includes(t) || card.code.toLowerCase().includes(t))) return false;
   }
   if(activeFilter==="all") return true;
-  const s=cardStats(card);
-  if(activeFilter==="miss") return s.have<s.total;
-  if(activeFilter==="dup")  return s.dup>0;
-  if(activeFilter==="done") return s.have===s.total;
-  return true;
+  if(activeFilter==="done"){ const s=cardStats(card); return s.have===s.total; }
+  // miss / dup: só mostra o card se houver figurinha correspondente
+  return visibleNums(card).length>0;
 }
 
 function render(){
@@ -438,11 +449,11 @@ function render(){
         <div class="team-name"><b>${card.name}</b><span>${card.code}</span></div>
         ${grpTag}
       </div>
-      <div class="team-mini">${s.have}/${s.total} coladas${s.dup?` · ${s.dup} repetida${s.dup>1?'s':''}`:''}</div>
+      <div class="team-mini">${miniLabel(card,s)}</div>
       <div class="mini-bar"><i style="width:${pct}%"></i></div>
       <div class="stickers"></div>`;
     const cont=el.querySelector(".stickers");
-    card.nums.forEach(n=>{
+    visibleNums(card).forEach(n=>{
       const id=card.code+"-"+n;
       cont.appendChild(stickerEl(id,n));
     });
@@ -500,17 +511,25 @@ grid.addEventListener("touchend",()=>{ if(pressTimer){ clearTimeout(pressTimer);
 
 function refreshSticker(st){
   const id=st.dataset.id, n=id.split("-")[1];
-  const fresh=stickerEl(id,n);
-  st.replaceWith(fresh);
-  // atualiza mini stats do card
-  const team=fresh.closest(".team");
   const code=id.split("-")[0];
   const card=CARDS.find(c=>c.code===code);
+  const team=st.closest(".team");
+  // em modo filtrado, se a figurinha não corresponde mais ao filtro, some
+  const filtered=(activeFilter==="miss"||activeFilter==="dup");
+  if(filtered && !visibleNums(card).includes(parseInt(n,10))){
+    st.remove();
+  }else{
+    st.replaceWith(stickerEl(id,n));
+  }
   const s=cardStats(card);
   const pct=Math.round(s.have/s.total*100);
-  team.querySelector(".team-mini").textContent=
-    `${s.have}/${s.total} coladas${s.dup?` · ${s.dup} repetida${s.dup>1?'s':''}`:''}`;
-  team.querySelector(".mini-bar > i").style.width=pct+"%";
+  if(team && team.querySelectorAll(".st").length===0){
+    team.remove();   // time ficou sem figurinhas visíveis nesse filtro
+    if(!grid.querySelector(".team")) document.getElementById("empty").style.display="block";
+  }else if(team){
+    team.querySelector(".team-mini").textContent=miniLabel(card,s);
+    team.querySelector(".mini-bar > i").style.width=pct+"%";
+  }
   renderStats();
 }
 
