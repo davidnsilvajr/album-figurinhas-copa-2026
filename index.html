@@ -150,13 +150,12 @@
   .st.falta .st-foot{background:transparent;color:rgba(255,255,255,.30)}
 
   .st .dupbadge{
-    position:absolute;top:-7px;right:-7px;z-index:4;background:var(--red);color:#fff;
-    font-size:11px;font-weight:900;min-width:22px;height:22px;border-radius:99px;display:grid;place-items:center;
-    padding:0 5px;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #131a44;cursor:pointer}
-  .st .dupbadge::before{content:"−";position:absolute;left:-13px;top:50%;transform:translateY(-50%);
-    color:#ff9b9b;font-size:13px;font-weight:900;opacity:0;transition:opacity .15s}
-  .st.dup:hover .dupbadge::before{opacity:1}
+    position:absolute;top:3px;right:4px;z-index:4;background:#e23a45;color:#fff;
+    font-size:10px;font-weight:900;height:16px;min-width:16px;padding:0 4px;border-radius:8px;
+    display:grid;place-items:center;cursor:pointer;line-height:1;
+    box-shadow:0 1px 3px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.55)}
   .st .dupbadge:hover{background:#ff5965}
+  .st.dup .st-yr{display:none}   /* esconde o '26 quando há selo de repetida */
   .st.hl{outline:3px solid var(--blue);outline-offset:2px}
 
   /* ---------- SHARE / TOAST / MODAL ---------- */
