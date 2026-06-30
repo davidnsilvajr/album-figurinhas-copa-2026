@@ -156,6 +156,9 @@
     box-shadow:0 1px 3px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.55)}
   .st .dupbadge:hover{background:#ff5965}
   .st.dup .st-yr{display:none}   /* esconde o '26 quando há selo de repetida */
+  .st .reqmark{position:absolute;left:3px;bottom:15px;z-index:4;font-size:10px;font-weight:900;
+    background:rgba(0,0,0,.55);color:#ffd95e;border-radius:7px;padding:1px 4px;line-height:1.2;
+    box-shadow:0 1px 3px rgba(0,0,0,.4)}
   .st.hl{outline:3px solid var(--blue);outline-offset:2px}
 
   /* ---------- SHARE / TOAST / MODAL ---------- */
@@ -390,7 +393,13 @@ const TOTAL = CARDS.reduce((s,c)=>s+c.nums.length,0);
 const KEY="figurinhas_album";
 let state = {}; // { "BRA-5": 2 }  -> 0/ausente=falta, 1=tenho, 2=tenho+1 rep...
 function userKey(){ return KEY + "_" + ((typeof cloud!=="undefined" && cloud.code) ? cloud.code : "_anon"); }
-function loadLocalAlbum(){ try{ state = JSON.parse(localStorage.getItem(userKey())) || {}; }catch(e){ state={}; } }
+let myTrades=[], myRequests=[];   // histórico de trocas e pedidos dos amigos
+function loadLocalAlbum(){
+  try{ state = JSON.parse(localStorage.getItem(userKey())) || {}; }catch(e){ state={}; }
+  try{ const m=JSON.parse(localStorage.getItem(userKey()+"_meta"))||{}; myTrades=m.trades||[]; myRequests=m.requests||[]; }catch(e){ myTrades=[]; myRequests=[]; }
+}
+function saveMetaLocal(){ try{ localStorage.setItem(userKey()+"_meta", JSON.stringify({trades:myTrades, requests:myRequests})); }catch(e){} }
+function persistMeta(){ saveMetaLocal(); cloudPush(); }   // salva histórico/pedidos local + nuvem
 function saveLocalAlbum(){ try{ localStorage.setItem(userKey(), JSON.stringify(state)); }catch(e){} }
 
 function save(){ saveLocalAlbum(); cloudPush(); }
@@ -499,6 +508,8 @@ function stickerEl(card,n){
   let inner=`<span class="st-yr">'26</span><span class="st-big">${n}</span><span class="st-foot">${card.code}</span>`;
   if(v===1) inner+=`<span class="check">✓</span>`;
   if(v>=2)  inner+=`<span class="dupbadge">+${v-1}</span>`;
+  const rq=myRequests.filter(r=>r.id===id).length;
+  if(rq) inner+=`<span class="reqmark" title="pedida por amigo(s)">🙋${rq>1?rq:""}</span>`;
   d.innerHTML=inner;
   return d;
 }
@@ -836,7 +847,7 @@ function cloudPillSet(cls,txt){
 
 /* payload de gravação do MEU álbum — inclui a senha pra ela não ser apagada */
 function myDoc(){
-  const d={ state:state, updatedAt:Date.now() };
+  const d={ state:state, updatedAt:Date.now(), trades:myTrades, requests:myRequests };
   if(myPassHash) d.pass=myPassHash;
   return d;
 }
@@ -850,7 +861,13 @@ function cloudConnect(){
     cloudPillSet("saving","Conectando…");
     if(unsub) unsub();
     unsub=docRef.onSnapshot(snap=>{
-      if(snap.exists && snap.data().pass) myPassHash=snap.data().pass;   // mantém o hash em memória
+      if(snap.exists){
+        const dd=snap.data();
+        if(dd.pass) myPassHash=dd.pass;                 // mantém o hash em memória
+        if(dd.trades) myTrades=dd.trades;               // histórico da nuvem
+        if(dd.requests) myRequests=dd.requests;         // pedidos da nuvem
+        saveMetaLocal();
+      }
       if(snap.exists && snap.data().state){
         const remote=snap.data().state;
         if(JSON.stringify(remote)!==JSON.stringify(state)){
@@ -1113,6 +1130,13 @@ function renderTradeHome(){
         <button class="btn ghost" id="fPasteGo">Usar backup</button>
       </div>
     </div>
+    <div class="tbox">
+      <h4>📒 Trocas & pedidos</h4>
+      <div class="trow">
+        <button class="btn ghost" id="histBtn">📜 Histórico (${myTrades.length})</button>
+        <button class="btn ghost" id="pedBtn">🙋 Pedidos dos amigos (${myRequests.length})</button>
+      </div>
+    </div>
     ${friends.length?`<div class="tbox"><h4>👥 Seus amigos salvos</h4><div class="trow" id="friendChips"></div></div>`:""}
     <div class="tbox">
       <h4>📨 Convidar amigo pro grupo de trocas</h4>
@@ -1121,6 +1145,8 @@ function renderTradeHome(){
       <div id="inviteOut"></div>
     </div>`;
 
+  tradeBody.querySelector("#histBtn").onclick=renderHistory;
+  tradeBody.querySelector("#pedBtn").onclick=renderPedidos;
   tradeBody.querySelector("#fGo").onclick=()=>{
     const name=tradeBody.querySelector("#fName").value.trim()||"Amigo";
     const code=tradeBody.querySelector("#fCode").value.trim().toLowerCase().replace(/[^a-z0-9\-]/g,"-");
@@ -1158,6 +1184,59 @@ function renderTradeHome(){
       chips.appendChild(c);
     });
   }
+}
+
+/* conjunto de IDs válidos (pra validar pedidos) */
+const validIds=new Set(); CARDS.forEach(c=>c.nums.forEach(n=>validIds.add(c.code+"-"+n)));
+function fmtIds(ids){ return (ids&&ids.length)? ids.map(id=>id.replace("-"," ")).join(", ") : "—"; }
+function fmtDate(t){ try{ const d=new Date(t); return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"2-digit"})+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
+
+function renderHistory(){
+  const rows = myTrades.length ? myTrades.map(tr=>`
+    <div class="tbox" style="margin-bottom:8px">
+      <div style="font-size:12px;color:var(--muted);font-weight:700">${fmtDate(tr.t)} · com <b style="color:var(--txt)">${tr.friend}</b></div>
+      <div style="font-size:13px;margin-top:5px"><span style="color:#7ef0ad;font-weight:800">📥 recebeu:</span> ${fmtIds(tr.got)}</div>
+      <div style="font-size:13px;margin-top:2px"><span style="color:var(--gold);font-weight:800">🎁 deu:</span> ${fmtIds(tr.gave)}</div>
+    </div>`).join("") : '<div class="tempty">Nenhuma troca registrada ainda. Cada troca que você confirmar aparece aqui automaticamente.</div>';
+  tradeBody.innerHTML=`<button class="btn ghost" id="backHome" style="margin-bottom:12px">‹ Voltar</button>
+    <h4 style="margin:0 0 10px">📜 Histórico de trocas (${myTrades.length})</h4>${rows}`;
+  tradeBody.querySelector("#backHome").onclick=renderTradeHome;
+}
+
+function renderPedidos(){
+  const list = myRequests.length ? myRequests.map((r,idx)=>`
+    <div class="titem" style="cursor:default;justify-content:space-between">
+      <span><b>${r.id.replace("-"," ")}</b> · 🙋 ${r.friend}</span>
+      <span class="del" data-idx="${idx}" style="cursor:pointer;color:#ff9b9b;font-weight:900;padding:0 6px">remover</span>
+    </div>`).join("") : '<div class="tempty">Nenhum pedido anotado ainda.</div>';
+  tradeBody.innerHTML=`<button class="btn ghost" id="backHome" style="margin-bottom:12px">‹ Voltar</button>
+    <h4 style="margin:0 0 10px">🙋 Pedidos dos amigos (${myRequests.length})</h4>
+    <div class="tbox">
+      <h4>➕ Anotar pedido</h4>
+      <div class="trow">
+        <input class="tinput" id="rqFriend" placeholder="amigo (ex: João)" autocomplete="off">
+        <input class="tinput" id="rqCode" placeholder="cód (BRA)" autocomplete="off" style="max-width:96px">
+        <input class="tinput" id="rqNum" placeholder="nº" inputmode="numeric" style="max-width:66px">
+        <button class="btn dup" id="rqAdd">Adicionar</button>
+      </div>
+      <div class="tempty">Anote qual figurinha cada amigo te pediu — elas ganham um marcador <b>🙋</b> no álbum pra você não dar pra outro sem querer.</div>
+    </div>
+    <div class="titems" style="grid-template-columns:1fr">${list}</div>`;
+  tradeBody.querySelector("#backHome").onclick=renderTradeHome;
+  tradeBody.querySelector("#rqAdd").onclick=()=>{
+    const friend=tradeBody.querySelector("#rqFriend").value.trim();
+    const code=tradeBody.querySelector("#rqCode").value.trim().toUpperCase().replace(/[^A-Z]/g,"");
+    const num=parseInt(tradeBody.querySelector("#rqNum").value,10);
+    if(!friend){ toast("Informe o amigo"); return; }
+    const id=code+"-"+num;
+    if(!validIds.has(id)){ toast("Figurinha inválida 🤔"); return; }
+    myRequests.unshift({ id, friend, t:Date.now() });
+    persistMeta(); render(); renderPedidos();
+    toast("Pedido anotado 🙋");
+  };
+  tradeBody.querySelectorAll(".del[data-idx]").forEach(b=>{
+    b.onclick=()=>{ myRequests.splice(parseInt(b.dataset.idx,10),1); persistMeta(); render(); renderPedidos(); };
+  });
 }
 
 function compareByCode(name,code){
@@ -1264,11 +1343,18 @@ function renderComparison(){
 }
 
 function confirmTrade(friend,updateFriend){
+  const got=[...selTake], gave=[...selGive];
   // Eu recebo (take): passo a ter
-  selTake.forEach(id=>{ if(get(id)<1) setVal(id,1); });
+  got.forEach(id=>{ if(get(id)<1) setVal(id,1); });
   // Eu dou (give): baixa numa repetida minha
-  selGive.forEach(id=>{ const v=get(id); if(v>=2) setVal(id,v-1); });
+  gave.forEach(id=>{ const v=get(id); if(v>=2) setVal(id,v-1); });
   render();
+
+  // registra no histórico e remove pedidos atendidos
+  myTrades.unshift({ t:Date.now(), friend:friend.name, got:got, gave:gave });
+  if(myTrades.length>200) myTrades.length=200;
+  myRequests = myRequests.filter(r=> !(r.friend===friend.name && gave.includes(r.id)) );
+  persistMeta();
 
   if(updateFriend && friend.code && db){
     const fs=Object.assign({},friend.state);
